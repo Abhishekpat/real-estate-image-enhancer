@@ -26,7 +26,7 @@ A fully client-side web application for enhancing property images instantly in t
 
 ## Demo
 
-[Live Demo](#) *(placeholder — add your deployed URL here)*
+[Live Demo] https://real-estate-image-enhancer.netlify.app/
 
 ## Project Structure
 
