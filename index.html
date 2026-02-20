@@ -7,74 +7,111 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header>
-        <h1>Real Estate Image Enhancer</h1>
-        <p class="subtitle">Upload a property image and enhance it instantly</p>
-    </header>
+    <div class="container">
+        <header>
+            <h1>Real Estate Image Enhancer</h1>
+            <p>Enhance property photos with lighting adjustments, object removal, and virtual staging</p>
+        </header>
 
-    <main>
-        <section class="upload-section" id="uploadSection">
-            <div class="upload-area" id="uploadArea">
-                <div class="upload-icon">&#128247;</div>
-                <p>Drag & drop a property image here</p>
-                <p class="upload-hint">or click to browse</p>
-                <input type="file" id="fileInput" accept="image/*" hidden>
-            </div>
-        </section>
-
-        <section class="editor-section" id="editorSection" style="display:none;">
-            <div class="toolbar">
-                <div class="toolbar-group">
-                    <button class="tool-btn" id="btnEnhance" title="Enhance Lighting">
-                        <span class="tool-icon">&#9728;</span> Enhance Lighting
-                    </button>
-                    <button class="tool-btn" id="btnErase" title="Remove Object">
-                        <span class="tool-icon">&#9986;</span> Remove Object
-                    </button>
-                    <button class="tool-btn" id="btnStage" title="Virtual Staging">
-                        <span class="tool-icon">&#128722;</span> Virtual Staging
-                    </button>
+        <main>
+            <!-- Upload Section -->
+            <section class="upload-section" id="uploadSection">
+                <div class="upload-area" id="uploadArea">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p>Drag & drop an image here or click to browse</p>
+                    <input type="file" id="fileInput" accept="image/*" hidden>
+                    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Choose Image</button>
                 </div>
-                <div class="toolbar-group">
-                    <button class="tool-btn secondary" id="btnReset" title="Reset to Original">
-                        &#8634; Reset
-                    </button>
-                    <button class="tool-btn primary" id="btnDownload" title="Download Enhanced Image">
-                        &#11015; Download
-                    </button>
+            </section>
+
+            <!-- Editor Section -->
+            <section class="editor-section" id="editorSection" style="display: none;">
+                <div class="editor-layout">
+                    <!-- Sidebar Controls -->
+                    <aside class="controls-panel">
+                        <div class="control-group">
+                            <h3>Enhance Lighting</h3>
+                            <div class="slider-control">
+                                <label for="brightness">Brightness</label>
+                                <input type="range" id="brightness" min="0" max="200" value="100">
+                                <span id="brightnessValue">100%</span>
+                            </div>
+                            <div class="slider-control">
+                                <label for="contrast">Contrast</label>
+                                <input type="range" id="contrast" min="0" max="200" value="100">
+                                <span id="contrastValue">100%</span>
+                            </div>
+                            <div class="slider-control">
+                                <label for="saturation">Saturation</label>
+                                <input type="range" id="saturation" min="0" max="200" value="100">
+                                <span id="saturationValue">100%</span>
+                            </div>
+                            <button class="btn btn-secondary" id="resetLighting">Reset Lighting</button>
+                        </div>
+
+                        <div class="control-group">
+                            <h3>Remove Object</h3>
+                            <p class="hint">Click and drag to erase parts of the image</p>
+                            <div class="slider-control">
+                                <label for="brushSize">Brush Size</label>
+                                <input type="range" id="brushSize" min="5" max="50" value="20">
+                                <span id="brushSizeValue">20px</span>
+                            </div>
+                            <button class="btn btn-secondary" id="toggleEraseMode">Start Erasing</button>
+                            <button class="btn btn-secondary" id="clearErase">Clear All Erasures</button>
+                        </div>
+
+                        <div class="control-group">
+                            <h3>Virtual Staging</h3>
+                            <p class="hint">Click furniture to add, then drag to position</p>
+                            <div class="furniture-grid">
+                                <div class="furniture-item" data-furniture="sofa">
+                                    <img src="assets/sofa.png" alt="Sofa" id="sofaPreview">
+                                    <span>Sofa</span>
+                                </div>
+                                <div class="furniture-item" data-furniture="table">
+                                    <img src="assets/table.png" alt="Table" id="tablePreview">
+                                    <span>Table</span>
+                                </div>
+                                <div class="furniture-item" data-furniture="plant">
+                                    <img src="assets/plant.png" alt="Plant" id="plantPreview">
+                                    <span>Plant</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" id="clearFurniture">Clear Furniture</button>
+                        </div>
+
+                        <div class="control-group actions">
+                            <button class="btn btn-primary" id="downloadBtn">Download Image</button>
+                            <button class="btn btn-secondary" id="newImageBtn">New Image</button>
+                        </div>
+                    </aside>
+
+                    <!-- Canvas Area -->
+                    <div class="canvas-container">
+                        <div class="canvas-wrapper">
+                            <canvas id="mainCanvas"></canvas>
+                            <canvas id="eraseCanvas"></canvas>
+                            <canvas id="furnitureCanvas"></canvas>
+                            <div class="canvas-overlay" id="canvasOverlay"></div>
+                        </div>
+                        <div class="canvas-info">
+                            <span id="imageDimensions"></span>
+                            <span id="modeIndicator"></span>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </section>
+        </main>
 
-            <!-- Enhance Controls -->
-            <div class="sub-controls" id="enhanceControls" style="display:none;">
-                <label>Brightness: <input type="range" id="brightness" min="-100" max="100" value="0"><span id="brightnessVal">0</span></label>
-                <label>Contrast: <input type="range" id="contrast" min="-100" max="100" value="0"><span id="contrastVal">0</span></label>
-                <label>Saturation: <input type="range" id="saturation" min="-100" max="100" value="0"><span id="saturationVal">0</span></label>
-                <button class="tool-btn small" id="btnAutoEnhance">Auto Enhance</button>
-            </div>
-
-            <!-- Erase Controls -->
-            <div class="sub-controls" id="eraseControls" style="display:none;">
-                <label>Brush Size: <input type="range" id="brushSize" min="5" max="80" value="25"><span id="brushSizeVal">25</span></label>
-                <p class="hint">Click and drag on the image to erase objects</p>
-            </div>
-
-            <!-- Staging Controls -->
-            <div class="sub-controls" id="stagingControls" style="display:none;">
-                <p class="hint">Select furniture to place on the image. Drag to reposition.</p>
-                <div class="furniture-picker" id="furniturePicker"></div>
-            </div>
-
-            <div class="canvas-wrapper">
-                <canvas id="mainCanvas"></canvas>
-                <div id="furnitureLayer"></div>
-            </div>
-        </section>
-    </main>
-
-    <footer>
-        <p>Real Estate Image Enhancer &mdash; No backend, no API, runs 100% in your browser.</p>
-    </footer>
+        <footer>
+            <p>Real Estate Image Enhancer - Process images locally in your browser</p>
+        </footer>
+    </div>
 
     <script src="script.js"></script>
 </body>

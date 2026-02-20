@@ -1,441 +1,429 @@
-(function () {
-    "use strict";
+// Real Estate Image Enhancer - Main JavaScript
 
-    const MAX_DIMENSION = 2000;
+// Global variables
+let originalImage = null;
+let mainCanvas, eraseCanvas, furnitureCanvas;
+let mainCtx, eraseCtx, furnitureCtx;
+let currentImageData = null;
+let isEraseMode = false;
+let isDragging = false;
+let dragFurniture = null;
+let furnitureItems = [];
+let brushSize = 20;
+let lastEraseX = null;
+let lastEraseY = null;
 
-    const $ = (sel) => document.querySelector(sel);
-    const uploadArea = $("#uploadArea");
-    const fileInput = $("#fileInput");
-    const uploadSection = $("#uploadSection");
-    const editorSection = $("#editorSection");
-    const canvas = $("#mainCanvas");
-    const ctx = canvas.getContext("2d");
-    const furnitureLayer = $("#furnitureLayer");
+// Maximum image dimensions for performance
+const MAX_WIDTH = 1920;
+const MAX_HEIGHT = 1080;
 
-    const btnEnhance = $("#btnEnhance");
-    const btnErase = $("#btnErase");
-    const btnStage = $("#btnStage");
-    const btnReset = $("#btnReset");
-    const btnDownload = $("#btnDownload");
+// DOM Elements
+document.addEventListener('DOMContentLoaded', () => {
+    initializeElements();
+    setupEventListeners();
+});
 
-    const enhanceControls = $("#enhanceControls");
-    const eraseControls = $("#eraseControls");
-    const stagingControls = $("#stagingControls");
+function initializeElements() {
+    mainCanvas = document.getElementById('mainCanvas');
+    eraseCanvas = document.getElementById('eraseCanvas');
+    furnitureCanvas = document.getElementById('furnitureCanvas');
+    mainCtx = mainCanvas.getContext('2d');
+    eraseCtx = eraseCanvas.getContext('2d');
+    furnitureCtx = furnitureCanvas.getContext('2d');
+}
 
-    const brightnessSlider = $("#brightness");
-    const contrastSlider = $("#contrast");
-    const saturationSlider = $("#saturation");
-    const brightnessVal = $("#brightnessVal");
-    const contrastVal = $("#contrastVal");
-    const saturationVal = $("#saturationVal");
-    const btnAutoEnhance = $("#btnAutoEnhance");
+function setupEventListeners() {
+    // File upload
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
 
-    const brushSizeSlider = $("#brushSize");
-    const brushSizeVal = $("#brushSizeVal");
-    const furniturePicker = $("#furniturePicker");
+    fileInput.addEventListener('change', handleFileSelect);
 
-    let originalImage = null;
-    let currentImageData = null;
-    let activeMode = null; // "enhance" | "erase" | "stage"
-    let isErasing = false;
-
-    const furnitureAssets = [
-        { name: "Sofa", src: "assets/sofa.svg", width: 180, height: 100 },
-        { name: "Table", src: "assets/table.svg", width: 150, height: 100 },
-        { name: "Plant", src: "assets/plant.svg", width: 80, height: 120 }
-    ];
-
-    // ── Upload Handling ──
-
-    uploadArea.addEventListener("click", () => fileInput.click());
-
-    uploadArea.addEventListener("dragover", (e) => {
+    uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
-        uploadArea.classList.add("dragover");
+        uploadArea.classList.add('dragover');
     });
 
-    uploadArea.addEventListener("dragleave", () => {
-        uploadArea.classList.remove("dragover");
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
     });
 
-    uploadArea.addEventListener("drop", (e) => {
+    uploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
-        uploadArea.classList.remove("dragover");
-        const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith("image/")) loadImage(file);
-    });
-
-    fileInput.addEventListener("change", () => {
-        const file = fileInput.files[0];
-        if (file) loadImage(file);
-    });
-
-    function loadImage(file) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            const img = new Image();
-            img.onload = function () {
-                let w = img.width;
-                let h = img.height;
-                if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
-                    const scale = MAX_DIMENSION / Math.max(w, h);
-                    w = Math.round(w * scale);
-                    h = Math.round(h * scale);
-                }
-                canvas.width = w;
-                canvas.height = h;
-                ctx.drawImage(img, 0, 0, w, h);
-                originalImage = ctx.getImageData(0, 0, w, h);
-                currentImageData = ctx.getImageData(0, 0, w, h);
-                uploadSection.style.display = "none";
-                editorSection.style.display = "block";
-                resetControls();
-                clearFurniture();
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
-    // ── Mode Switching ──
-
-    function setMode(mode) {
-        activeMode = activeMode === mode ? null : mode;
-
-        btnEnhance.classList.toggle("active", activeMode === "enhance");
-        btnErase.classList.toggle("active", activeMode === "erase");
-        btnStage.classList.toggle("active", activeMode === "stage");
-
-        enhanceControls.style.display = activeMode === "enhance" ? "flex" : "none";
-        eraseControls.style.display = activeMode === "erase" ? "flex" : "none";
-        stagingControls.style.display = activeMode === "stage" ? "flex" : "none";
-
-        canvas.classList.toggle("erasing", activeMode === "erase");
-
-        if (activeMode === "stage") {
-            furnitureLayer.style.pointerEvents = "auto";
-        } else {
-            furnitureLayer.style.pointerEvents = "none";
+        uploadArea.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            processFile(files[0]);
         }
-    }
-
-    btnEnhance.addEventListener("click", () => setMode("enhance"));
-    btnErase.addEventListener("click", () => setMode("erase"));
-    btnStage.addEventListener("click", () => setMode("stage"));
-
-    // ── Enhance Lighting ──
-
-    function applyEnhancements() {
-        if (!originalImage) return;
-        const brightness = parseInt(brightnessSlider.value, 10);
-        const contrast = parseInt(contrastSlider.value, 10);
-        const saturation = parseInt(saturationSlider.value, 10);
-
-        brightnessVal.textContent = brightness;
-        contrastVal.textContent = contrast;
-        saturationVal.textContent = saturation;
-
-        const src = originalImage.data;
-        const out = new ImageData(
-            new Uint8ClampedArray(src),
-            originalImage.width,
-            originalImage.height
-        );
-        const data = out.data;
-
-        const contrastFactor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-        const satFactor = 1 + saturation / 100;
-
-        for (let i = 0; i < data.length; i += 4) {
-            let r = data[i] + brightness;
-            let g = data[i + 1] + brightness;
-            let b = data[i + 2] + brightness;
-
-            r = contrastFactor * (r - 128) + 128;
-            g = contrastFactor * (g - 128) + 128;
-            b = contrastFactor * (b - 128) + 128;
-
-            const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-            r = gray + satFactor * (r - gray);
-            g = gray + satFactor * (g - gray);
-            b = gray + satFactor * (b - gray);
-
-            data[i] = r;
-            data[i + 1] = g;
-            data[i + 2] = b;
-        }
-
-        ctx.putImageData(out, 0, 0);
-        currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    }
-
-    brightnessSlider.addEventListener("input", applyEnhancements);
-    contrastSlider.addEventListener("input", applyEnhancements);
-    saturationSlider.addEventListener("input", applyEnhancements);
-
-    btnAutoEnhance.addEventListener("click", () => {
-        brightnessSlider.value = 20;
-        contrastSlider.value = 15;
-        saturationSlider.value = 25;
-        applyEnhancements();
     });
 
-    // ── Erase Tool ──
+    // Lighting controls
+    document.getElementById('brightness').addEventListener('input', updateLighting);
+    document.getElementById('contrast').addEventListener('input', updateLighting);
+    document.getElementById('saturation').addEventListener('input', updateLighting);
+    document.getElementById('resetLighting').addEventListener('click', resetLighting);
 
-    function getCanvasCoords(e) {
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return {
-            x: (clientX - rect.left) * scaleX,
-            y: (clientY - rect.top) * scaleY
-        };
+    // Erase controls
+    document.getElementById('brushSize').addEventListener('input', updateBrushSize);
+    document.getElementById('toggleEraseMode').addEventListener('click', toggleEraseMode);
+    document.getElementById('clearErase').addEventListener('click', clearErasures);
+
+    // Furniture controls
+    document.querySelectorAll('.furniture-item').forEach(item => {
+        item.addEventListener('click', () => addFurniture(item.dataset.furniture));
+    });
+    document.getElementById('clearFurniture').addEventListener('click', clearFurniture);
+
+    // Canvas overlay interactions
+    const overlay = document.getElementById('canvasOverlay');
+    overlay.addEventListener('mousedown', handleCanvasMouseDown);
+    overlay.addEventListener('mousemove', handleCanvasMouseMove);
+    overlay.addEventListener('mouseup', handleCanvasMouseUp);
+    overlay.addEventListener('mouseleave', handleCanvasMouseUp);
+
+    // Touch support
+    overlay.addEventListener('touchstart', handleTouchStart, { passive: false });
+    overlay.addEventListener('touchmove', handleTouchMove, { passive: false });
+    overlay.addEventListener('touchend', handleCanvasMouseUp);
+
+    // Action buttons
+    document.getElementById('downloadBtn').addEventListener('click', downloadImage);
+    document.getElementById('newImageBtn').addEventListener('click', resetApp);
+}
+
+// File Handling
+function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) {
+        processFile(file);
+    }
+}
+
+function processFile(file) {
+    if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
     }
 
-    function eraseAt(x, y) {
-        const size = parseInt(brushSizeSlider.value, 10);
-        const halfSize = size / 2;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            loadImage(img);
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
 
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
-        const w = canvas.width;
-        const h = canvas.height;
+function loadImage(img) {
+    originalImage = img;
 
-        const sx = Math.max(0, Math.floor(x - halfSize));
-        const sy = Math.max(0, Math.floor(y - halfSize));
-        const ex = Math.min(w - 1, Math.ceil(x + halfSize));
-        const ey = Math.min(h - 1, Math.ceil(y + halfSize));
+    // Resize if needed
+    let width = img.width;
+    let height = img.height;
 
-        for (let py = sy; py <= ey; py++) {
-            for (let px = sx; px <= ex; px++) {
-                const dx = px - x;
-                const dy = py - y;
-                if (dx * dx + dy * dy > halfSize * halfSize) continue;
+    if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+        const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+    }
 
-                let totalR = 0, totalG = 0, totalB = 0, count = 0;
-                const sampleRadius = Math.max(size, 15);
-                for (let s = 0; s < 12; s++) {
-                    const angle = (s / 12) * Math.PI * 2;
-                    const sr = sampleRadius + Math.random() * 5;
-                    const nx = Math.round(px + Math.cos(angle) * sr);
-                    const ny = Math.round(py + Math.sin(angle) * sr);
-                    if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-                        const ni = (ny * w + nx) * 4;
-                        totalR += data[ni];
-                        totalG += data[ni + 1];
-                        totalB += data[ni + 2];
-                        count++;
-                    }
-                }
-                if (count > 0) {
-                    const idx = (py * w + px) * 4;
-                    data[idx] = totalR / count;
-                    data[idx + 1] = totalG / count;
-                    data[idx + 2] = totalB / count;
-                }
+    // Set canvas dimensions
+    mainCanvas.width = width;
+    mainCanvas.height = height;
+    eraseCanvas.width = width;
+    eraseCanvas.height = height;
+    furnitureCanvas.width = width;
+    furnitureCanvas.height = height;
+
+    // Draw original image
+    mainCtx.drawImage(img, 0, 0, width, height);
+    currentImageData = mainCtx.getImageData(0, 0, width, height);
+
+    // Update UI
+    document.getElementById('uploadSection').style.display = 'none';
+    document.getElementById('editorSection').style.display = 'block';
+    document.getElementById('imageDimensions').textContent = `${width} x ${height}px`;
+
+    // Reset controls
+    resetLighting();
+    clearErasures();
+    clearFurniture();
+}
+
+// Lighting Enhancement
+function updateLighting() {
+    if (!originalImage) return;
+
+    const brightness = parseInt(document.getElementById('brightness').value);
+    const contrast = parseInt(document.getElementById('contrast').value);
+    const saturation = parseInt(document.getElementById('saturation').value);
+
+    // Update value displays
+    document.getElementById('brightnessValue').textContent = brightness + '%';
+    document.getElementById('contrastValue').textContent = contrast + '%';
+    document.getElementById('saturationValue').textContent = saturation + '%';
+
+    // Apply filters
+    mainCtx.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
+    mainCtx.drawImage(originalImage, 0, 0, mainCanvas.width, mainCanvas.height);
+    mainCtx.filter = 'none';
+}
+
+function resetLighting() {
+    document.getElementById('brightness').value = 100;
+    document.getElementById('contrast').value = 100;
+    document.getElementById('saturation').value = 100;
+    document.getElementById('brightnessValue').textContent = '100%';
+    document.getElementById('contrastValue').textContent = '100%';
+    document.getElementById('saturationValue').textContent = '100%';
+    
+    if (originalImage) {
+        mainCtx.filter = 'none';
+        mainCtx.drawImage(originalImage, 0, 0, mainCanvas.width, mainCanvas.height);
+    }
+}
+
+// Erase Tool
+function updateBrushSize() {
+    brushSize = parseInt(document.getElementById('brushSize').value);
+    document.getElementById('brushSizeValue').textContent = brushSize + 'px';
+}
+
+function toggleEraseMode() {
+    isEraseMode = !isEraseMode;
+    const btn = document.getElementById('toggleEraseMode');
+    const overlay = document.getElementById('canvasOverlay');
+    const modeIndicator = document.getElementById('modeIndicator');
+
+    if (isEraseMode) {
+        btn.textContent = 'Stop Erasing';
+        btn.classList.add('active');
+        overlay.classList.add('eraser-mode');
+        modeIndicator.textContent = 'Eraser Mode';
+    } else {
+        btn.textContent = 'Start Erasing';
+        btn.classList.remove('active');
+        overlay.classList.remove('eraser-mode');
+        modeIndicator.textContent = '';
+    }
+}
+
+function clearErasures() {
+    eraseCtx.clearRect(0, 0, eraseCanvas.width, eraseCanvas.height);
+}
+
+function erase(x, y) {
+    eraseCtx.globalCompositeOperation = 'destination-out';
+    eraseCtx.beginPath();
+    
+    if (lastEraseX !== null && lastEraseY !== null) {
+        eraseCtx.moveTo(lastEraseX, lastEraseY);
+        eraseCtx.lineTo(x, y);
+        eraseCtx.lineWidth = brushSize;
+        eraseCtx.lineCap = 'round';
+        eraseCtx.lineJoin = 'round';
+        eraseCtx.stroke();
+    }
+    
+    eraseCtx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+    eraseCtx.fill();
+    
+    lastEraseX = x;
+    lastEraseY = y;
+}
+
+// Virtual Staging - Furniture
+function addFurniture(type) {
+    if (!originalImage) return;
+
+    const furnitureImg = new Image();
+    furnitureImg.crossOrigin = 'anonymous';
+    
+    furnitureImg.onload = () => {
+        // Scale furniture to reasonable size (20-30% of canvas width)
+        const scale = Math.min(0.25, 300 / furnitureImg.width);
+        const width = furnitureImg.width * scale;
+        const height = furnitureImg.height * scale;
+        
+        // Place in center
+        const x = (furnitureCanvas.width - width) / 2;
+        const y = (furnitureCanvas.height - height) / 2;
+        
+        const item = {
+            img: furnitureImg,
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            dragging: false
+        };
+        
+        furnitureItems.push(item);
+        renderFurniture();
+    };
+    
+    furnitureImg.src = `assets/${type}.png`;
+}
+
+function renderFurniture() {
+    furnitureCtx.clearRect(0, 0, furnitureCanvas.width, furnitureCanvas.height);
+    
+    furnitureItems.forEach(item => {
+        furnitureCtx.drawImage(item.img, item.x, item.y, item.width, item.height);
+    });
+}
+
+function clearFurniture() {
+    furnitureItems = [];
+    furnitureCtx.clearRect(0, 0, furnitureCanvas.width, furnitureCanvas.height);
+}
+
+// Canvas Mouse/Touch Handlers
+function getCanvasCoordinates(e) {
+    const rect = mainCanvas.getBoundingClientRect();
+    const scaleX = mainCanvas.width / rect.width;
+    const scaleY = mainCanvas.height / rect.height;
+    
+    let clientX, clientY;
+    if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+    }
+    
+    return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+    };
+}
+
+function handleCanvasMouseDown(e) {
+    if (!originalImage) return;
+    
+    const coords = getCanvasCoordinates(e);
+    
+    if (isEraseMode) {
+        lastEraseX = coords.x;
+        lastEraseY = coords.y;
+        erase(coords.x, coords.y);
+    } else {
+        // Check if clicking on furniture
+        for (let i = furnitureItems.length - 1; i >= 0; i--) {
+            const item = furnitureItems[i];
+            if (coords.x >= item.x && coords.x <= item.x + item.width &&
+                coords.y >= item.y && coords.y <= item.y + item.height) {
+                item.dragging = true;
+                item.dragOffsetX = coords.x - item.x;
+                item.dragOffsetY = coords.y - item.y;
+                isDragging = true;
+                dragFurniture = item;
+                document.getElementById('canvasOverlay').classList.add('drag-mode');
+                break;
             }
         }
-        ctx.putImageData(imgData, 0, 0);
-        currentImageData = ctx.getImageData(0, 0, w, h);
     }
+}
 
-    canvas.addEventListener("mousedown", (e) => {
-        if (activeMode !== "erase") return;
-        isErasing = true;
-        const { x, y } = getCanvasCoords(e);
-        eraseAt(x, y);
-    });
-
-    canvas.addEventListener("mousemove", (e) => {
-        if (!isErasing || activeMode !== "erase") return;
-        const { x, y } = getCanvasCoords(e);
-        eraseAt(x, y);
-    });
-
-    canvas.addEventListener("mouseup", () => { isErasing = false; });
-    canvas.addEventListener("mouseleave", () => { isErasing = false; });
-
-    canvas.addEventListener("touchstart", (e) => {
-        if (activeMode !== "erase") return;
-        e.preventDefault();
-        isErasing = true;
-        const { x, y } = getCanvasCoords(e);
-        eraseAt(x, y);
-    }, { passive: false });
-
-    canvas.addEventListener("touchmove", (e) => {
-        if (!isErasing || activeMode !== "erase") return;
-        e.preventDefault();
-        const { x, y } = getCanvasCoords(e);
-        eraseAt(x, y);
-    }, { passive: false });
-
-    canvas.addEventListener("touchend", () => { isErasing = false; });
-
-    brushSizeSlider.addEventListener("input", () => {
-        brushSizeVal.textContent = brushSizeSlider.value;
-    });
-
-    // ── Virtual Staging ──
-
-    function buildFurniturePicker() {
-        furniturePicker.innerHTML = "";
-        furnitureAssets.forEach((asset, idx) => {
-            const div = document.createElement("div");
-            div.className = "fp-option";
-            div.title = "Add " + asset.name;
-            const img = document.createElement("img");
-            img.src = asset.src;
-            img.alt = asset.name;
-            div.appendChild(img);
-            div.addEventListener("click", () => addFurniture(idx));
-            furniturePicker.appendChild(div);
-        });
+function handleCanvasMouseMove(e) {
+    if (!originalImage) return;
+    
+    const coords = getCanvasCoordinates(e);
+    
+    if (isEraseMode && lastEraseX !== null) {
+        erase(coords.x, coords.y);
+    } else if (isDragging && dragFurniture) {
+        dragFurniture.x = coords.x - dragFurniture.dragOffsetX;
+        dragFurniture.y = coords.y - dragFurniture.dragOffsetY;
+        renderFurniture();
     }
+}
 
-    function addFurniture(assetIndex) {
-        const asset = furnitureAssets[assetIndex];
-        const wrapper = document.createElement("div");
-        wrapper.className = "furniture-item";
-
-        const canvasRect = canvas.getBoundingClientRect();
-        const scaleX = canvasRect.width / canvas.width;
-        const displayW = asset.width * scaleX;
-        const displayH = asset.height * scaleX;
-
-        wrapper.style.width = displayW + "px";
-        wrapper.style.height = displayH + "px";
-        wrapper.style.left = (canvasRect.width / 2 - displayW / 2) + "px";
-        wrapper.style.top = (canvasRect.height / 2 - displayH / 2) + "px";
-
-        const img = document.createElement("img");
-        img.src = asset.src;
-        img.alt = asset.name;
-        img.draggable = false;
-        wrapper.appendChild(img);
-
-        const removeBtn = document.createElement("button");
-        removeBtn.className = "remove-furniture";
-        removeBtn.textContent = "\u00D7";
-        removeBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            wrapper.remove();
-        });
-        wrapper.appendChild(removeBtn);
-
-        makeDraggable(wrapper);
-        furnitureLayer.appendChild(wrapper);
+function handleCanvasMouseUp() {
+    lastEraseX = null;
+    lastEraseY = null;
+    
+    if (dragFurniture) {
+        dragFurniture.dragging = false;
+        dragFurniture = null;
     }
+    
+    isDragging = false;
+    document.getElementById('canvasOverlay').classList.remove('drag-mode');
+}
 
-    function makeDraggable(el) {
-        let offsetX = 0, offsetY = 0, startX = 0, startY = 0, dragging = false;
+// Touch handlers
+function handleTouchStart(e) {
+    if (!originalImage) return;
+    e.preventDefault();
+    handleCanvasMouseDown(e);
+}
 
-        function onStart(e) {
-            if (e.target.classList.contains("remove-furniture")) return;
-            dragging = true;
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            startX = clientX;
-            startY = clientY;
-            offsetX = el.offsetLeft;
-            offsetY = el.offsetTop;
-            el.style.cursor = "grabbing";
-            e.preventDefault();
+function handleTouchMove(e) {
+    if (!originalImage) return;
+    e.preventDefault();
+    handleCanvasMouseMove(e);
+}
+
+// Download
+function downloadImage() {
+    if (!originalImage) return;
+
+    // Create a temporary canvas to combine all layers
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = mainCanvas.width;
+    tempCanvas.height = mainCanvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    // Draw main image
+    tempCtx.drawImage(mainCanvas, 0, 0);
+
+    // Apply erasures (draw erase canvas with destination-out effect on a copy)
+    const eraseData = eraseCtx.getImageData(0, 0, eraseCanvas.width, eraseCanvas.height);
+    const mainData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    
+    for (let i = 0; i < eraseData.data.length; i += 4) {
+        if (eraseData.data[i + 3] > 0) {
+            mainData.data[i + 3] = 0; // Set alpha to 0
         }
-
-        function onMove(e) {
-            if (!dragging) return;
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            el.style.left = (offsetX + clientX - startX) + "px";
-            el.style.top = (offsetY + clientY - startY) + "px";
-        }
-
-        function onEnd() {
-            dragging = false;
-            el.style.cursor = "grab";
-        }
-
-        el.addEventListener("mousedown", onStart);
-        document.addEventListener("mousemove", onMove);
-        document.addEventListener("mouseup", onEnd);
-        el.addEventListener("touchstart", onStart, { passive: false });
-        document.addEventListener("touchmove", onMove, { passive: false });
-        document.addEventListener("touchend", onEnd);
     }
+    
+    tempCtx.putImageData(mainData, 0, 0);
 
-    function clearFurniture() {
-        furnitureLayer.innerHTML = "";
-    }
+    // Draw furniture
+    tempCtx.drawImage(furnitureCanvas, 0, 0);
 
-    buildFurniturePicker();
+    // Download
+    const link = document.createElement('a');
+    link.download = 'enhanced-property-image.png';
+    link.href = tempCanvas.toDataURL('image/png');
+    link.click();
+}
 
-    // ── Reset ──
-
-    function resetControls() {
-        brightnessSlider.value = 0;
-        contrastSlider.value = 0;
-        saturationSlider.value = 0;
-        brightnessVal.textContent = "0";
-        contrastVal.textContent = "0";
-        saturationVal.textContent = "0";
-        setMode(null);
-        activeMode = null;
-    }
-
-    btnReset.addEventListener("click", () => {
-        if (!originalImage) return;
-        ctx.putImageData(originalImage, 0, 0);
-        currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        resetControls();
-        clearFurniture();
-    });
-
-    // ── Download ──
-
-    btnDownload.addEventListener("click", () => {
-        const exportCanvas = document.createElement("canvas");
-        exportCanvas.width = canvas.width;
-        exportCanvas.height = canvas.height;
-        const exportCtx = exportCanvas.getContext("2d");
-        exportCtx.drawImage(canvas, 0, 0);
-
-        const canvasRect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / canvasRect.width;
-        const scaleY = canvas.height / canvasRect.height;
-
-        const items = furnitureLayer.querySelectorAll(".furniture-item");
-        let loaded = 0;
-        const total = items.length;
-
-        if (total === 0) {
-            triggerDownload(exportCanvas);
-            return;
-        }
-
-        items.forEach((item) => {
-            const imgEl = item.querySelector("img");
-            const img = new Image();
-            img.onload = function () {
-                const left = parseFloat(item.style.left) * scaleX;
-                const top = parseFloat(item.style.top) * scaleY;
-                const w = item.offsetWidth * scaleX;
-                const h = item.offsetHeight * scaleY;
-                exportCtx.drawImage(img, left, top, w, h);
-                loaded++;
-                if (loaded === total) triggerDownload(exportCanvas);
-            };
-            img.src = imgEl.src;
-        });
-    });
-
-    function triggerDownload(cvs) {
-        const link = document.createElement("a");
-        link.download = "enhanced-property.png";
-        link.href = cvs.toDataURL("image/png");
-        link.click();
-    }
-
-})();
+// Reset
+function resetApp() {
+    originalImage = null;
+    furnitureItems = [];
+    isEraseMode = false;
+    isDragging = false;
+    dragFurniture = null;
+    
+    document.getElementById('uploadSection').style.display = 'block';
+    document.getElementById('editorSection').style.display = 'none';
+    document.getElementById('fileInput').value = '';
+    
+    // Clear canvases
+    mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+    eraseCtx.clearRect(0, 0, eraseCanvas.width, eraseCanvas.height);
+    furnitureCtx.clearRect(0, 0, furnitureCanvas.width, furnitureCanvas.height);
+    
+    // Reset controls
+    resetLighting();
+    document.getElementById('toggleEraseMode').textContent = 'Start Erasing';
+    document.getElementById('toggleEraseMode').classList.remove('active');
+    document.getElementById('canvasOverlay').classList.remove('eraser-mode');
+    document.getElementById('modeIndicator').textContent = '';
+}
