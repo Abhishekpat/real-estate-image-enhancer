@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real Estate Image Enhancer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Real Estate Image Enhancer</h1>
+        <p class="subtitle">Upload a property image and enhance it instantly</p>
+    </header>
+
+    <main>
+        <section class="upload-section" id="uploadSection">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">&#128247;</div>
+                <p>Drag & drop a property image here</p>
+                <p class="upload-hint">or click to browse</p>
+                <input type="file" id="fileInput" accept="image/*" hidden>
+            </div>
+        </section>
+
+        <section class="editor-section" id="editorSection" style="display:none;">
+            <div class="toolbar">
+                <div class="toolbar-group">
+                    <button class="tool-btn" id="btnEnhance" title="Enhance Lighting">
+                        <span class="tool-icon">&#9728;</span> Enhance Lighting
+                    </button>
+                    <button class="tool-btn" id="btnErase" title="Remove Object">
+                        <span class="tool-icon">&#9986;</span> Remove Object
+                    </button>
+                    <button class="tool-btn" id="btnStage" title="Virtual Staging">
+                        <span class="tool-icon">&#128722;</span> Virtual Staging
+                    </button>
+                </div>
+                <div class="toolbar-group">
+                    <button class="tool-btn secondary" id="btnReset" title="Reset to Original">
+                        &#8634; Reset
+                    </button>
+                    <button class="tool-btn primary" id="btnDownload" title="Download Enhanced Image">
+                        &#11015; Download
+                    </button>
+                </div>
+            </div>
+
+            <!-- Enhance Controls -->
+            <div class="sub-controls" id="enhanceControls" style="display:none;">
+                <label>Brightness: <input type="range" id="brightness" min="-100" max="100" value="0"><span id="brightnessVal">0</span></label>
+                <label>Contrast: <input type="range" id="contrast" min="-100" max="100" value="0"><span id="contrastVal">0</span></label>
+                <label>Saturation: <input type="range" id="saturation" min="-100" max="100" value="0"><span id="saturationVal">0</span></label>
+                <button class="tool-btn small" id="btnAutoEnhance">Auto Enhance</button>
+            </div>
+
+            <!-- Erase Controls -->
+            <div class="sub-controls" id="eraseControls" style="display:none;">
+                <label>Brush Size: <input type="range" id="brushSize" min="5" max="80" value="25"><span id="brushSizeVal">25</span></label>
+                <p class="hint">Click and drag on the image to erase objects</p>
+            </div>
+
+            <!-- Staging Controls -->
+            <div class="sub-controls" id="stagingControls" style="display:none;">
+                <p class="hint">Select furniture to place on the image. Drag to reposition.</p>
+                <div class="furniture-picker" id="furniturePicker"></div>
+            </div>
+
+            <div class="canvas-wrapper">
+                <canvas id="mainCanvas"></canvas>
+                <div id="furnitureLayer"></div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Real Estate Image Enhancer &mdash; No backend, no API, runs 100% in your browser.</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
